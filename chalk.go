@@ -13,6 +13,7 @@ import (
 // App struct
 type App struct {
 	ctx context.Context
+	notesDir string
 }
 
 type Note struct {
@@ -24,7 +25,12 @@ type Note struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	return &App{}
+	home, err := os.UserHomeDir()
+	dir := "Notes"
+	if err == nil {
+		dir = filepath.Join(home, "Notes")
+	}
+	return &App{notesDir: dir}
 }
 
 // startup is called when the app starts. The context is saved
@@ -35,7 +41,7 @@ func (a *App) startup(ctx context.Context) {
 
 
 func (a *App) ListNotes() ([]Note, error)  {       // filenames in the notes dir
-	entries, err := os.ReadDir(a.notesDir())
+	entries, err := os.ReadDir(a.notesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []Note{}, nil
@@ -70,13 +76,13 @@ func (a *App) ListNotes() ([]Note, error)  {       // filenames in the notes dir
 	return notes, nil
 }
 
-func (a *App) notesDir() string {
+/*func (a *App) notesDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "Notes"
 	}
 	return filepath.Join(home, "Notes")
-}
+}*/
 
 
 func (a *App) ReadNote(filename string) (Note, error) { // load one file's content
@@ -86,8 +92,8 @@ func (a *App) ReadNote(filename string) (Note, error) { // load one file's conte
 		return Note{}, fmt.Errorf("invalid filename: %s", filename)
 	}
 
-	// 2. filepath.Join(a.notesDir(), filename)
-	path := filepath.Join(a.notesDir(), safe)
+	// 2. filepath.Join(a.notesDir, filename)
+	path := filepath.Join(a.notesDir, safe)
 	// 3. os.ReadFile(path)
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -105,10 +111,10 @@ func (a *App) SaveNote(filename, content string) error { // create or overwrite
 	// 1. sanitize filename (same as ReadNote)
 	safe := filepath.Base(filepath.Clean(filename))
 	if safe != filename {
-		return Note{}, fmt.Errorf("invalid filename: %s", filename)
+		return fmt.Errorf("invalid filename: %s", filename)
 	}
-	// 2. filepath.Join(a.notesDir(), filename)
-	path := filepath.Join(a.notesDir(), safe)
+	// 2. filepath.Join(a.notesDir, filename)
+	path := filepath.Join(a.notesDir, safe)
 	// 3. os.WriteFile(path, []byte(content), 0644)
 	err := os.WriteFile(path, []byte(content), 0644)
 	if err != nil {
@@ -120,11 +126,11 @@ func (a *App) DeleteNote(filename string) error {       // os.Remove
 	// 1. sanitize filename
 	safe := filepath.Base(filepath.Clean(filename))
 	if safe != filename {
-		return Note{}, fmt.Errorf("invalid filename: %s", filename)
+		return fmt.Errorf("invalid filename: %s", filename)
 	}
 
-	// 2. filepath.Join(a.notesDir(), filename)
-	path := filepath.Join(a.notesDir(), safe)
+	// 2. filepath.Join(a.notesDir, filename)
+	path := filepath.Join(a.notesDir, safe)
 	// 3. os.Remove(path)
 	err := os.Remove(path)
 	if err != nil {
