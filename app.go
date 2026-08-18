@@ -16,6 +16,7 @@ type App struct {
 }
 
 type Note struct {
+	Filename	string `json:"filename"`
 	Title		string `json:"title"`
 	Content		string `json:"content"`
 	Modified	string `json:"modified"`
@@ -33,7 +34,7 @@ func (a *App) startup(ctx context.Context) {
 }
 
 
-func (a *App) ListNotes() ([]string, error)  {       // filenames in the notes dir
+func (a *App) ListNotes() ([]Note, error)  {       // filenames in the notes dir
 	entries, err := os.ReadDir(a.notesDir())
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -44,7 +45,7 @@ func (a *App) ListNotes() ([]string, error)  {       // filenames in the notes d
 
 	var notes []Note
 	for _, entry := range entries {
-		if entry.IsDir() || !string.HasSuffix(entry.Name(), ".md") {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
 		info, err := entry.Info()
@@ -52,7 +53,7 @@ func (a *App) ListNotes() ([]string, error)  {       // filenames in the notes d
 			continue
 		}
 		title := strings.TrimSuffix(entry.Name(), ".md")
-		title := strings.ReplaceAll(title, "-", " ")
+		title = strings.ReplaceAll(title, "-", " ")
 
 		notes = append(notes, Note{
 			Filename: entry.Name(),
@@ -79,9 +80,55 @@ func (a *App) notesDir() string {
 
 
 func (a *App) ReadNote(filename string) (Note, error) { // load one file's content
-	
+	// 1. sanitize filename with filepath.Clean / reject path separators
+	safe := filepath.Base(filepath.Clean(filename))
+	if safe != filename {
+		return Note{}, fmt.Errorf("invalid filename: %s", filename)
+	}
+
+	// 2. filepath.Join(a.notesDir(), filename)
+	path := filepath.Join(a.notesDir(), safe)
+	// 3. os.ReadFile(path)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Note{}, fmt.Errorf("note not found: %s", filename)
+		}
+		return Note{}, fmt.Errorf("reading note %s: %w", filename, err)
+	}
+	// 5. return string(contents), nil
+	return Note{Content: string(content)}, nil
 }
 
 
-func (a *App) SaveNote(filename, content string) error // create or overwrite
-func (a *App) DeleteNote(filename string) error        // os.Remove
+func (a *App) SaveNote(filename, content string) error { // create or overwrite
+	// 1. sanitize filename (same as ReadNote)
+	safe := filepath.Base(filepath.Clean(filename))
+	if safe != filename {
+		return Note{}, fmt.Errorf("invalid filename: %s", filename)
+	}
+	// 2. filepath.Join(a.notesDir(), filename)
+	path := filepath.Join(a.notesDir(), safe)
+	// 3. os.WriteFile(path, []byte(content), 0644)
+	err := os.WriteFile(path, []byte(content), 0644)
+	if err != nil {
+		return fmt.Errorf("saving note %s: %w", filename, err)
+	}
+	return nil
+}
+func (a *App) DeleteNote(filename string) error {       // os.Remove
+	// 1. sanitize filename
+	safe := filepath.Base(filepath.Clean(filename))
+	if safe != filename {
+		return Note{}, fmt.Errorf("invalid filename: %s", filename)
+	}
+
+	// 2. filepath.Join(a.notesDir(), filename)
+	path := filepath.Join(a.notesDir(), safe)
+	// 3. os.Remove(path)
+	err := os.Remove(path)
+	if err != nil {
+		return fmt.Errorf("deleting note %s: %w", filename, err)
+	}
+	return nil
+}
